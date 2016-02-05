@@ -6,17 +6,16 @@
 
 #define LEARNING_RATE 0.5
 
-#define ISTEST 0
 
 /******************************************************
  *
  * num_layer : number of layers (include input, output layer)
+ *
  * layer_size : array for each layers size
- * value :
  *
+ * value : each node's output
  *
- * mini_batch : deltas for each cycles
- *
+ * mini_batch : errors for each cycles
  *
  ******************************************************/
 
@@ -56,16 +55,6 @@ private:
 
 
 
-
-
-
-
-
-
-
-
-
-
 //
 //
 //		implementations
@@ -75,13 +64,16 @@ Net::Net(int* layer_size, int num_layer, int mini_batch_size, int epoch){
     //
     // write on class vars
     this->num_layer = num_layer;
-    this->layer_size = layer_size;
     this->mini_batch_size = mini_batch_size;
     this->epoch = epoch;
-    
+
     
     //
     //          memory allocation
+    // layer size
+    this->layer_size = new int[num_layer];
+    for(int i=0; i<num_layer; i++)
+        this->layer_size[i] = layer_size[i];
     // value
     value = new double*[num_layer];
     for(int i=0; i<num_layer; i++)
@@ -123,7 +115,7 @@ Net::Net(int* layer_size, int num_layer, int mini_batch_size, int epoch){
     
     //
     //
-    //          input random initial weights&biases(-1 ~ 1)
+    //          input random initial weights & biases(-1 ~ 1)
     for(int i=0; i<num_layer-1; i++)
         for(int j=0; j<layer_size[i]; j++)
             for(int k=0; k<layer_size[i+1]; k++)
@@ -138,6 +130,7 @@ Net::Net(int* layer_size, int num_layer, int mini_batch_size, int epoch){
 
 
 void Net::initializer(){
+    
     for(int i=0; i<num_layer; i++)
         for(int j=0; j<layer_size[i]; j++)
             value[i][j] = 0;
@@ -191,37 +184,37 @@ void Net::backpropagation(double learning_rate){
         for(int i=0; i<num_layer-1; i++)
             for(int j=0; j<layer_size[i]; j++)
                 for(int k=0; k<layer_size[i+1]; k++)
-                    weight[i][j][k] -= mini_batch[cycle][i+1][k]				// delta
-                    * value[i+1][k]*(1-value[i+1][k])		// d{simoid(e)}/ d{e}
-                    * value[i][j]							// x1
-                    * learning_rate;						// learning rate
+                    weight[i][j][k] -= mini_batch[cycle][i+1][k]	// delta
+                    * value[i+1][k]*(1-value[i+1][k])				// d{simoid(e)}/ d{e}
+                    * value[i][j]									// x1
+                    * learning_rate;								// learning rate
+        
         // update bias
         for(int i=1; i<num_layer-1; i++)
             for(int j=0; j<layer_size[i]; j++)
                 for(int k=0; k<layer_size[i+1]; k++)
-                    bias[i][j] += mini_batch[cycle][i+1][k]				// delta
-                    * value[i+1][k]*(1-value[i+1][k])	// d{simoid(e)}/ d{e}
-                    * value[i][j]						// x1
-                    * learning_rate;					// learning rate
+                    bias[i][j] += mini_batch[cycle][i+1][k]		// delta
+                    * value[i+1][k]*(1-value[i+1][k])			// d{simoid(e)}/ d{e}
+                    * value[i][j]								// x1
+                    * learning_rate;							// learning rate
     }
 }// back propagation
 
 
 void Net::train(int data_size, double input[][INPUT_SIZE], double desired[][OUTPUT_SIZE]){
-    for(int i=0; i<epoch; i++){
+    for(int i=0; i<epoch; i++)
         for(int j=0; j<data_size;){
             for(int cycle=0; cycle<mini_batch_size && j<data_size; cycle++, j++){
                 initializer();
                 feedforward(input[j]);
                 back_pass(desired[j]);
                 
-                for(int k=1; k<num_layer; k++)			// copy from error to mini_batch
+                for(int k=1; k<num_layer; k++)	// copy from error to mini_batch
                     for(int l=0; l<layer_size[k]; l++)
                         mini_batch[cycle][k][l] = error[k][l];
             }
             backpropagation(LEARNING_RATE);
         }
-    }
 }// train
 
 
@@ -233,14 +226,13 @@ double* Net::test(double* input){
 
 
 
-
 // Destructor
 Net::~Net(){
-    // destry weight
+    // destroy weight
     for(int i=0; i<num_layer-1; i++)
-        for(int j=0; j<layer_size[i]; i++)
+        for(int j=0; j<layer_size[i]; j++)
             delete[] weight[i][j];
-    for(int i=0; i<num_layer; i++)
+    for(int i=0; i<num_layer-1; i++)
         delete[] weight[i];
     delete[] weight;
     
@@ -263,11 +255,11 @@ Net::~Net(){
     for(int i=0; i<mini_batch_size; i++)
         for(int j=0; j<num_layer; j++)
             delete[] mini_batch[i][j];
-    for(int i=0; i<num_layer; i++)
-        delete[] mini_batch;
+    for(int i=0; i<mini_batch_size; i++)
+        delete[] mini_batch[i];
     delete[] mini_batch;
     
-    // destroy layer_size
+    // destroy layer size
     delete[] layer_size;
 }// destructor
 
