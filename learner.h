@@ -1,11 +1,16 @@
 #ifndef learner_h
 #define learner_h
 
+#define NUM_LAYER 4
+
 #define INPUT_SIZE 4
+#define HIDDEN_SIZE 20, 20
 #define OUTPUT_SIZE 16
 
 #define LEARNING_RATE 0.5
 
+
+using namespace std;
 
 /******************************************************
  *
@@ -15,27 +20,23 @@
  *
  * value : each node's output
  *
- * mini_batch : errors for each cycles
- *
  ******************************************************/
 
 class Net{
 private:
-    int epoch;
-    int mini_batch_size;
     int num_layer;
+    int mini_batch_size;
     int* layer_size;
     double** value;
     double*** weight;
     double** bias;
-    double** error;
-    double*** mini_batch;
+    double*** error;
     
 public:
     Net(int* layer_size, int num_layer, int mini_batch_size, int epoch);
     ~Net();
     
-    void train(int data_size, double input[][INPUT_SIZE], double desired[][OUTPUT_SIZE]);
+    void train(double input[][INPUT_SIZE], double desired[][OUTPUT_SIZE], int num_data);
     double* test(double* input);
     
 private:
@@ -44,8 +45,8 @@ private:
     double sigmoid(double num);
     
     void feedforward(double* input);
-    void back_pass(double* desired);
-    void backpropagation(double learning_rate);
+    void back_pass(double* desired, double** error);
+    void backpropagation(double learning_rate, int num_data);
     
 };// Net class
 
@@ -65,8 +66,7 @@ Net::Net(int* layer_size, int num_layer, int mini_batch_size, int epoch){
     // write on class vars
     this->num_layer = num_layer;
     this->mini_batch_size = mini_batch_size;
-    this->epoch = epoch;
-
+    
     
     //
     //          memory allocation
@@ -80,9 +80,12 @@ Net::Net(int* layer_size, int num_layer, int mini_batch_size, int epoch){
         value[i] = new double[layer_size[i]];
     
     // error
-    error = new double*[num_layer];
-    for(int i=1; i<num_layer; i++)
-        error[i] = new double[layer_size[i]];
+    error = new double**[mini_batch_size];
+    for(int i=0; i<mini_batch_size; i++)
+        error[i] = new double*[num_layer];
+    for(int i=0; i<mini_batch_size; i++)
+        for(int j=1; j<num_layer; j++)
+            error[i][j] = new double[layer_size[j]];
     
     
     // bias
@@ -102,16 +105,6 @@ Net::Net(int* layer_size, int num_layer, int mini_batch_size, int epoch){
     for(int i=0; i<num_layer-1; i++)
         for(int j=0; j<layer_size[i]; j++)
             weight[i][j] = new double[layer_size[i+1]];
-    
-    
-    // mini batch
-    mini_batch = new double**[mini_batch_size];
-    for(int i=0; i<mini_batch_size; i++)
-        mini_batch[i] = new double*[num_layer];
-    for(int i=0; i<mini_batch_size; i++)
-        for(int j=0; j<num_layer; j++)
-            mini_batch[i][j] = new double[layer_size[j]];
-    
     
     //
     //
@@ -135,9 +128,10 @@ void Net::initializer(){
         for(int j=0; j<layer_size[i]; j++)
             value[i][j] = 0;
     
-    for(int i=1; i<num_layer; i++)
-        for(int j=0; j<layer_size[i]; j++)
-            error[i][j] = 0;
+    for(int k=0; k<mini_batch_size; k++)
+        for(int i=1; i<num_layer; i++)
+            for(int j=0; j<layer_size[i]; j++)
+                error[k][i][j] = 0;
 }// initializer
 
 
@@ -164,7 +158,7 @@ void Net::feedforward(double* input){
 
 
 
-void Net::back_pass(double* desired){
+void Net::back_pass(double* desired, double** error){
     for(int i=0; i<layer_size[num_layer-1]; i++)
         error[num_layer-1][i] = value[num_layer-1][i] - desired[i];
     
@@ -177,14 +171,13 @@ void Net::back_pass(double* desired){
 
 
 
-void Net::backpropagation(double learning_rate){
-    for(int cycle=0; cycle<mini_batch_size; cycle++){
-        
+void Net::backpropagation(double learning_rate, int num_data){
+    for(int cycle=0; cycle<num_data; cycle++){
         // update weight
         for(int i=0; i<num_layer-1; i++)
             for(int j=0; j<layer_size[i]; j++)
                 for(int k=0; k<layer_size[i+1]; k++)
-                    weight[i][j][k] -= mini_batch[cycle][i+1][k]	// delta
+                    weight[i][j][k] -= error[cycle][i+1][k]			// delta
                     * value[i+1][k]*(1-value[i+1][k])				// d{simoid(e)}/ d{e}
                     * value[i][j]									// x1
                     * learning_rate;								// learning rate
@@ -193,7 +186,7 @@ void Net::backpropagation(double learning_rate){
         for(int i=1; i<num_layer-1; i++)
             for(int j=0; j<layer_size[i]; j++)
                 for(int k=0; k<layer_size[i+1]; k++)
-                    bias[i][j] += mini_batch[cycle][i+1][k]		// delta
+                    bias[i][j] += error[cycle][i+1][k]			// delta
                     * value[i+1][k]*(1-value[i+1][k])			// d{simoid(e)}/ d{e}
                     * value[i][j]								// x1
                     * learning_rate;							// learning rate
@@ -201,20 +194,17 @@ void Net::backpropagation(double learning_rate){
 }// back propagation
 
 
-void Net::train(int data_size, double input[][INPUT_SIZE], double desired[][OUTPUT_SIZE]){
-    for(int i=0; i<epoch; i++)
-        for(int j=0; j<data_size;){
-            for(int cycle=0; cycle<mini_batch_size && j<data_size; cycle++, j++){
-                initializer();
-                feedforward(input[j]);
-                back_pass(desired[j]);
-                
-                for(int k=1; k<num_layer; k++)	// copy from error to mini_batch
-                    for(int l=0; l<layer_size[k]; l++)
-                        mini_batch[cycle][k][l] = error[k][l];
-            }
-            backpropagation(LEARNING_RATE);
-        }
+void Net::train(double input[][INPUT_SIZE], double desired[][OUTPUT_SIZE], int num_data){
+    initializer();
+    for(int i=0; i<num_data; i++){
+        feedforward(input[i]);
+        back_pass(desired[i], error[i]);
+        
+        for(int j=0; j<4; j++)
+	        cout << input[i][j];
+        cout << endl;
+    }
+    backpropagation(LEARNING_RATE, num_data);
 }// train
 
 
@@ -242,22 +232,17 @@ Net::~Net(){
     delete[] bias;
     
     // delete error
-    for(int i=0; i<num_layer; i++)
-        delete error[i];
+    for(int i=0; i<mini_batch_size; i++)
+        for(int j=0; j<num_layer; j++)
+            delete[] error[i][j];
+    for(int i=0; i<mini_batch_size; i++)
+        delete[] error[i];
     delete[] error;
     
     // destroy value
     for(int i=0; i<num_layer; i++)
         delete[] value[i];
     delete[] value;
-    
-    // destroy mini_batch
-    for(int i=0; i<mini_batch_size; i++)
-        for(int j=0; j<num_layer; j++)
-            delete[] mini_batch[i][j];
-    for(int i=0; i<mini_batch_size; i++)
-        delete[] mini_batch[i];
-    delete[] mini_batch;
     
     // destroy layer size
     delete[] layer_size;
