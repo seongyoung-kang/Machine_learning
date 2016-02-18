@@ -3,14 +3,14 @@
 
 #define NUM_LAYER 4
 
-#define INPUT_SIZE 784
-#define HIDDEN_SIZE 100, 100
-#define OUTPUT_SIZE 10
+#define INPUT_SIZE 4
+#define HIDDEN_SIZE 20, 20
+#define OUTPUT_SIZE 16
 
 #define LEARNING_RATE 0.5
 
 
-//using namespace std;
+using namespace std;
 
 /******************************************************
  *
@@ -200,9 +200,9 @@ void Net::train(double input[][INPUT_SIZE], double desired[][OUTPUT_SIZE], int n
         feedforward(input[i]);
         back_pass(desired[i], error[i]);
         
-//        for(int j=0; j<4; j++)
-//	        cout << input[i][j];
-//        cout << endl;
+        for(int j=0; j<4; j++)
+	        cout << input[i][j];
+        cout << endl;
     }
     backpropagation(LEARNING_RATE, num_data);
 }// train
