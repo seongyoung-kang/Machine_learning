@@ -4,25 +4,21 @@
 #include <cstdlib>
 #include <time.h>
 #include <math.h>
+#include <omp.h>
 #include "learner.h"
 
 #define TRAIN_SIZE 60000
 #define TEST_SIZE 10000
 
-#define MINI_BATCH_SIZE 1
+#define MINI_BATCH_SIZE 10
 #define EPOCH 1
 
 
-//#define TRAIN_PATH1 "/Users/lunahc/Desktop/Mnist/trainer1.txt"
-//#define TRAIN_PATH2 "/Users/lunahc/Desktop/Mnist/trainer2.txt"
-//#define TEST_PATH1 "/Users/lunahc/Desktop/Mnist/tester1.txt"
-//#define TEST_PATH2 "/Users/lunahc/Desktop/Mnist/tester2.txt"
-
-/*		MNIST		*/
-#define TRAIN_PATH1 "/Users/lunahc/Desktop/Mnist/train-images.idx3-ubyte"
-#define TRAIN_PATH2 "/Users/lunahc/Desktop/Mnist/train-labels.idx1-ubyte"
-#define TEST_PATH1 "/Users/lunahc/Desktop/Mnist/t10k-images.idx3-ubyte"
-#define TEST_PATH2 "/Users/lunahc/Desktop/Mnist/t10k-labels.idx1-ubyte"
+/*		MNIST file path		*/
+#define TRAIN_PATH1 "/home/urop/examples/machine_learning/Mnist/train-images.idx3-ubyte"
+#define TRAIN_PATH2 "/home/urop/examples/machine_learning/Mnist/train-labels.idx1-ubyte"
+#define TEST_PATH1 "/home/urop/examples/machine_learning/Mnist/t10k-images.idx3-ubyte"
+#define TEST_PATH2 "/home/urop/examples/machine_learning/Mnist/t10k-labels.idx1-ubyte"
 
 typedef unsigned char byte;
 
@@ -43,12 +39,10 @@ int main(void){
    
 
     clock_t begin, end;
-    
     begin = clock();
     
     // train
     train(net);
-
     
     // test
     test(net);
@@ -57,11 +51,9 @@ int main(void){
     
     std::cout << "==========error rate==========" << std::endl;
     std::cout << False/(True+False) * 100 << "% \n Total num error... : " << False << std::endl << " Total num correct... :" << True << std::endl;
-   
-
     std::cout << "    elapsed time : " << (double)(end-begin)/CLOCKS_PER_SEC << std::endl;
     
-    delete net;
+    //delete net;
     return 0;
 }// main
 
@@ -81,32 +73,22 @@ void train(Net* net){
     
     double input_double[MINI_BATCH_SIZE][INPUT_SIZE];
     double output_double[MINI_BATCH_SIZE][OUTPUT_SIZE];
-    
+ 
     for(int i=0; i<EPOCH; i++){
         fread(input, sizeof(byte), 16, inf);	// trash
         fread(output, sizeof(byte), 8, outf);	// trash
-        
+
+
         for(int j=0; j<TRAIN_SIZE/MINI_BATCH_SIZE; j++){ 		// undiviable -> cutting...
             for(int k=0; k<MINI_BATCH_SIZE; k++){
                 fread(input, sizeof(byte), INPUT_SIZE, inf);
                 fread(output, sizeof(byte), 1, outf);
-                
+
                 for(int l=0; l<INPUT_SIZE; l++)
                     input_double[k][l] = (double)input[l]!=0?1:0;
                 for(int l=0; l<OUTPUT_SIZE; l++)
                     output_double[k][l] = (double)((1 << output[0]) & (1 << l))!=0?1:0;
                 
-                
-//                for(int l=0; l<OUTPUT_SIZE; l++)
-//                    std::cout << output_double[k][l] << " ";
-//                std::cout << std::endl;
-//                
-//                
-//                for(int l=0; l<28; l++){
-//                    for(int m=0; m<28; m++)
-//                        std::cout << input_double[k][l*28+m];
-//                    std::cout << std::endl;
-//                }
             }
             net->train(input_double, output_double, MINI_BATCH_SIZE);
         }
@@ -193,4 +175,3 @@ void error_rate(double result[], double desired[]){
     if(checker) True++;
     else False++;
 }
-

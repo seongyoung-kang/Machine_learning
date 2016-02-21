@@ -1,3 +1,5 @@
+#include <omp.h>
+
 #ifndef learner_h
 #define learner_h
 
@@ -8,9 +10,6 @@
 #define OUTPUT_SIZE 10
 
 #define LEARNING_RATE 0.5
-
-
-//using namespace std;
 
 /******************************************************
  *
@@ -47,9 +46,7 @@ private:
     void feedforward(double* input);
     void back_pass(double* desired, double** error);
     void backpropagation(double learning_rate, int num_data);
-    
 };// Net class
-
 
 
 
@@ -94,14 +91,10 @@ Net::Net(int* layer_size, int num_layer, int mini_batch_size, int epoch){
         bias[i] = new double[layer_size[i]];  //  bias[0] : trash
     
     
-    // weight layer
+    // weight
     weight = new double**[num_layer-1];
-    
-    // weight from
     for(int i=0; i<num_layer-1; i++)
         weight[i] = new double*[layer_size[i]];
-    
-    // weight to
     for(int i=0; i<num_layer-1; i++)
         for(int j=0; j<layer_size[i]; j++)
             weight[i][j] = new double[layer_size[i+1]];
@@ -122,12 +115,26 @@ Net::Net(int* layer_size, int num_layer, int mini_batch_size, int epoch){
 
 
 
+void Net::train(double input[][INPUT_SIZE], double desired[][OUTPUT_SIZE], int num_data){
+    initializer();
+    for(int i=0; i<num_data; i++){
+        feedforward(input[i]);
+        back_pass(desired[i], error[i]);
+    }
+    backpropagation(LEARNING_RATE, num_data);
+}// train
+
+
+
+double* Net::test(double* input){
+    initializer();
+    feedforward(input);
+    return value[num_layer-1];
+}// test
+
+
+
 void Net::initializer(){
-    
-    for(int i=0; i<num_layer; i++)
-        for(int j=0; j<layer_size[i]; j++)
-            value[i][j] = 0;
-    
     for(int k=0; k<mini_batch_size; k++)
         for(int i=1; i<num_layer; i++)
             for(int j=0; j<layer_size[i]; j++)
@@ -166,18 +173,26 @@ void Net::back_pass(double* desired, double** error){
         for(int j=0; j<layer_size[i]; j++)
             for(int k=0; k<layer_size[i+1]; k++)
                 error[i][j] += error[i+1][k]*weight[i][j][k];
-    
 }// back pass
 
 
 
 void Net::backpropagation(double learning_rate, int num_data){
-    for(int cycle=0; cycle<num_data; cycle++){
+    for(int cycle=1; cycle<num_data; cycle++){
+		for(int i=0; i<num_layer-1; i++)
+			for(int j=0; j<layer_size[i]; j++)
+				error[0][i+1][j] += error[cycle][i+1][j];
+
+		for(int i=0; i<num_layer-1; i++)
+			for(int j=0; j<layer_size[i]; j++)
+				error[0][i+1][j] /= num_data; 
+	}
+
         // update weight
         for(int i=0; i<num_layer-1; i++)
             for(int j=0; j<layer_size[i]; j++)
                 for(int k=0; k<layer_size[i+1]; k++)
-                    weight[i][j][k] -= error[cycle][i+1][k]			// delta
+                    weight[i][j][k] -= error[0][i+1][k]			// delta
                     * value[i+1][k]*(1-value[i+1][k])				// d{simoid(e)}/ d{e}
                     * value[i][j]									// x1
                     * learning_rate;								// learning rate
@@ -186,33 +201,11 @@ void Net::backpropagation(double learning_rate, int num_data){
         for(int i=1; i<num_layer-1; i++)
             for(int j=0; j<layer_size[i]; j++)
                 for(int k=0; k<layer_size[i+1]; k++)
-                    bias[i][j] += error[cycle][i+1][k]			// delta
+                    bias[i][j] += error[0][i+1][k]			// delta
                     * value[i+1][k]*(1-value[i+1][k])			// d{simoid(e)}/ d{e}
                     * value[i][j]								// x1
                     * learning_rate;							// learning rate
-    }
 }// back propagation
-
-
-void Net::train(double input[][INPUT_SIZE], double desired[][OUTPUT_SIZE], int num_data){
-    initializer();
-    for(int i=0; i<num_data; i++){
-        feedforward(input[i]);
-        back_pass(desired[i], error[i]);
-        
-//        for(int j=0; j<4; j++)
-//	        cout << input[i][j];
-//        cout << endl;
-    }
-    backpropagation(LEARNING_RATE, num_data);
-}// train
-
-
-double* Net::test(double* input){
-    initializer();
-    feedforward(input);
-    return value[num_layer-1];
-}// test
 
 
 
@@ -227,7 +220,7 @@ Net::~Net(){
     delete[] weight;
     
     // destroy bias
-    for(int i=0; i<num_layer; i++)
+    for(int i=1; i<num_layer; i++)
         delete[] bias[i];
     delete[] bias;
     
