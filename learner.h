@@ -1,7 +1,7 @@
-#include <omp.h>
-
 #ifndef learner_h
 #define learner_h
+
+#include <omp.h>
 
 #define NUM_LAYER 4
 
@@ -26,7 +26,7 @@ private:
     int num_layer;
     int mini_batch_size;
     int* layer_size;
-    double** value;
+    double*** value;
     double*** weight;
     double** bias;
     double*** error;
@@ -43,9 +43,10 @@ private:
     
     double sigmoid(double num);
     
-    void feedforward(double* input);
-    void back_pass(double* desired, double** error);
+    void feedforward(double* input, int data_num);
+    void back_pass(double* desired, double** error, int data_num);
     void backpropagation(double learning_rate, int num_data);
+
 };// Net class
 
 
@@ -59,6 +60,10 @@ private:
 
 // constructor
 Net::Net(int* layer_size, int num_layer, int mini_batch_size, int epoch){
+	int iCPU = omp_get_num_procs();
+	omp_set_num_threads(iCPU);
+
+	int i, j, k;
     //
     // write on class vars
     this->num_layer = num_layer;
@@ -69,46 +74,55 @@ Net::Net(int* layer_size, int num_layer, int mini_batch_size, int epoch){
     //          memory allocation
     // layer size
     this->layer_size = new int[num_layer];
-    for(int i=0; i<num_layer; i++)
+#pragma omp parallel for
+    for(i=0; i<num_layer; i++)
         this->layer_size[i] = layer_size[i];
+
     // value
-    value = new double*[num_layer];
-    for(int i=0; i<num_layer; i++)
-        value[i] = new double[layer_size[i]];
-    
+	value = new double**[mini_batch_size];
+#pragma omp parallel for
+	for(i=0; i<mini_batch_size; i++)
+		value[i] = new double*[num_layer];
+	for(i=0; i<mini_batch_size; i++)
+		for(j=0; j<num_layer; j++)
+			value[i][j] = new double[layer_size[j]];
+
     // error
     error = new double**[mini_batch_size];
-    for(int i=0; i<mini_batch_size; i++)
+#pragma omp parallel for
+    for(i=0; i<mini_batch_size; i++)
         error[i] = new double*[num_layer];
-    for(int i=0; i<mini_batch_size; i++)
-        for(int j=1; j<num_layer; j++)
+    for(i=0; i<mini_batch_size; i++)
+        for(int j=0; j<num_layer; j++)
             error[i][j] = new double[layer_size[j]];
-    
     
     // bias
     bias = new double*[num_layer];
-    for(int i=1; i<num_layer; i++)
+#pragma omp parallel for
+    for(i=1; i<num_layer; i++)
         bias[i] = new double[layer_size[i]];  //  bias[0] : trash
-    
     
     // weight
     weight = new double**[num_layer-1];
-    for(int i=0; i<num_layer-1; i++)
+#pragma omp parallel for
+    for(i=0; i<num_layer-1; i++)
         weight[i] = new double*[layer_size[i]];
-    for(int i=0; i<num_layer-1; i++)
-        for(int j=0; j<layer_size[i]; j++)
+    for(i=0; i<num_layer-1; i++)
+        for(j=0; j<layer_size[i]; j++)
             weight[i][j] = new double[layer_size[i+1]];
     
     //
     //
     //          input random initial weights & biases(-1 ~ 1)
-    for(int i=0; i<num_layer-1; i++)
-        for(int j=0; j<layer_size[i]; j++)
-            for(int k=0; k<layer_size[i+1]; k++)
+#pragma omp parallel for
+    for(i=0; i<num_layer-1; i++)
+        for(j=0; j<layer_size[i]; j++)
+            for(k=0; k<layer_size[i+1]; k++)
                 weight[i][j][k] = (double)rand()/(RAND_MAX/2)-1;
     
-    for(int i=1; i<num_layer; i++)
-        for(int j=0; j<layer_size[i]; j++)
+#pragma omp parallel for
+    for(i=1; i<num_layer; i++)
+        for(j=0; j<layer_size[i]; j++)
             bias[i][j] = (double)rand()/(RAND_MAX/2)-1;
     
 }// constructor
@@ -116,10 +130,12 @@ Net::Net(int* layer_size, int num_layer, int mini_batch_size, int epoch){
 
 
 void Net::train(double input[][INPUT_SIZE], double desired[][OUTPUT_SIZE], int num_data){
+	int i;
     initializer();
-    for(int i=0; i<num_data; i++){
-        feedforward(input[i]);
-        back_pass(desired[i], error[i]);
+#pragma omp parallel for num_threads(num_data)
+    for(i=0; i<num_data; i++){
+		feedforward(input[omp_get_thread_num()], omp_get_thread_num());
+        back_pass(desired[omp_get_thread_num()], error[omp_get_thread_num()], omp_get_thread_num());
     }
     backpropagation(LEARNING_RATE, num_data);
 }// train
@@ -128,16 +144,18 @@ void Net::train(double input[][INPUT_SIZE], double desired[][OUTPUT_SIZE], int n
 
 double* Net::test(double* input){
     initializer();
-    feedforward(input);
-    return value[num_layer-1];
+    feedforward(input, 0);
+    return value[0][num_layer-1];
 }// test
 
 
 
 void Net::initializer(){
-    for(int k=0; k<mini_batch_size; k++)
-        for(int i=1; i<num_layer; i++)
-            for(int j=0; j<layer_size[i]; j++)
+	int i, j, k;
+#pragma omp parallel for
+    for(k=0; k<mini_batch_size; k++)
+        for(i=1; i<num_layer; i++)
+            for(j=0; j<layer_size[i]; j++)
                 error[k][i][j] = 0;
 }// initializer
 
@@ -149,68 +167,83 @@ double Net::sigmoid(double num){
 
 
 
-void Net::feedforward(double* input){
-    for(int i=0; i<layer_size[0]; i++)
-        value[0][i] = input[i];
-    
+void Net::feedforward(double* input, int data_num){
+	int i, j, k;
+#pragma omp parallel for
+    for(i=0; i<layer_size[0]; i++)
+        value[data_num][0][i] = input[i];
+
     double sum;
-    for(int i=0; i<num_layer-1; i++)
-        for(int k=0; k<layer_size[i+1]; k++){
+    for(i=0; i<num_layer-1; i++)
+#pragma omp parallel for
+        for(k=0; k<layer_size[i+1]; k++){
             sum = 0;
-            for(int j=0; j<layer_size[i]; j++)
-                sum += weight[i][j][k]*value[i][j];
-            value[i+1][k] = sigmoid(sum + bias[i+1][k]);
+            for(j=0; j<layer_size[i]; j++)
+                sum += weight[i][j][k]*value[data_num][i][j];
+            value[data_num][i+1][k] = sigmoid(sum + bias[i+1][k]);
         }
 }// feed forward
 
 
 
-void Net::back_pass(double* desired, double** error){
-    for(int i=0; i<layer_size[num_layer-1]; i++)
-        error[num_layer-1][i] = value[num_layer-1][i] - desired[i];
+void Net::back_pass(double* desired, double** error, int data_num){
+	int i, j, k;
+
+#pragma omp parallel for
+    for(i=0; i<layer_size[num_layer-1]; i++)
+        error[num_layer-1][i] = value[data_num][num_layer-1][i] - desired[i];
     
-    for(int i=num_layer-2; i>0; i--)
-        for(int j=0; j<layer_size[i]; j++)
-            for(int k=0; k<layer_size[i+1]; k++)
+    for(i=num_layer-2; i>0; i--)
+#pragma omp parallel for
+        for(j=0; j<layer_size[i]; j++)
+            for(k=0; k<layer_size[i+1]; k++)
                 error[i][j] += error[i+1][k]*weight[i][j][k];
 }// back pass
 
 
 
 void Net::backpropagation(double learning_rate, int num_data){
+	int i, j, k;
+
     for(int cycle=1; cycle<num_data; cycle++){
-		for(int i=0; i<num_layer-1; i++)
-			for(int j=0; j<layer_size[i]; j++)
+
+		for(i=0; i<num_layer-1; i++)
+			for(j=0; j<layer_size[i]; j++)
 				error[0][i+1][j] += error[cycle][i+1][j];
 
-		for(int i=0; i<num_layer-1; i++)
-			for(int j=0; j<layer_size[i]; j++)
-				error[0][i+1][j] /= num_data; 
+		for(i=0; i<num_layer-1; i++)
+			for(j=0; j<layer_size[i]; j++)
+				error[0][i+1][j] /= num_data;
 	}
 
         // update weight
-        for(int i=0; i<num_layer-1; i++)
-            for(int j=0; j<layer_size[i]; j++)
-                for(int k=0; k<layer_size[i+1]; k++)
-                    weight[i][j][k] -= error[0][i+1][k]			// delta
-                    * value[i+1][k]*(1-value[i+1][k])				// d{simoid(e)}/ d{e}
-                    * value[i][j]									// x1
-                    * learning_rate;								// learning rate
+        for(i=0; i<num_layer-1; i++)
+#pragma omp parallel for
+            for(j=0; j<layer_size[i]; j++)
+                for(k=0; k<layer_size[i+1]; k++)
+                    weight[i][j][k] -= error[0][i+1][k]				// delta
+                    * value[num_data-1][i+1][k]*(1-value[num_data-1][i+1][k])	// d{simoid(e)}/ d{e}
+                    * value[num_data-1][i][j]					// x1
+                    * learning_rate;						// learning rate
         
+
         // update bias
-        for(int i=1; i<num_layer-1; i++)
-            for(int j=0; j<layer_size[i]; j++)
-                for(int k=0; k<layer_size[i+1]; k++)
-                    bias[i][j] += error[0][i+1][k]			// delta
-                    * value[i+1][k]*(1-value[i+1][k])			// d{simoid(e)}/ d{e}
-                    * value[i][j]								// x1
-                    * learning_rate;							// learning rate
+        for(i=1; i<num_layer-1; i++)
+#pragma omp parallel for
+            for(j=0; j<layer_size[i]; j++)
+                for(k=0; k<layer_size[i+1]; k++)
+                    bias[i][j] += error[0][i+1][k]				// delta
+                    * value[num_data-1][i+1][k]*(1-value[num_data-1][i+1][k])	// d{simoid(e)}/ d{e}
+                    * value[num_data-1][i][j]					// x1
+                    * learning_rate;						// learning rate
 }// back propagation
 
 
 
 // Destructor
 Net::~Net(){
+	int i, j;
+
     // destroy weight
     for(int i=0; i<num_layer-1; i++)
         for(int j=0; j<layer_size[i]; j++)
@@ -225,22 +258,23 @@ Net::~Net(){
     delete[] bias;
     
     // delete error
-    for(int i=0; i<mini_batch_size; i++)
-        for(int j=0; j<num_layer; j++)
+    for(i=0; i<mini_batch_size; i++)
+        for(j=1; j<num_layer; j++)
             delete[] error[i][j];
     for(int i=0; i<mini_batch_size; i++)
         delete[] error[i];
     delete[] error;
-    
+   
     // destroy value
-    for(int i=0; i<num_layer; i++)
-        delete[] value[i];
-    delete[] value;
+	for(i=0; i<mini_batch_size; i++)
+		for(j=0; j<num_layer; j++)
+			delete[] value[i][j];
+	for(i=0; i<mini_batch_size; i++)
+		delete[] value[i];
+	delete[] value;
     
     // destroy layer size
     delete[] layer_size;
 }// destructor
-
-
 
 #endif /* learner_h */

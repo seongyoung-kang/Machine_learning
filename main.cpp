@@ -2,9 +2,8 @@
 #include <random>
 #include <fstream>
 #include <cstdlib>
-#include <time.h>
+#include <sys/time.h>
 #include <math.h>
-#include <omp.h>
 #include "learner.h"
 
 #define TRAIN_SIZE 60000
@@ -12,6 +11,13 @@
 
 #define MINI_BATCH_SIZE 10
 #define EPOCH 1
+
+/* 		Time checker		*/
+struct timeval start_time, end_time, elapsed_time;
+#define START_TIME gettimeofday(&start_time, NULL);
+#define END_TIME gettimeofday(&end_time, NULL);
+#define PRINT_TIME timersub(&end_time, &start_time, &elapsed_time); \
+					std::cout << elapsed_time.tv_sec << "." << elapsed_time.tv_usec << std::endl;
 
 
 /*		MNIST file path		*/
@@ -38,22 +44,22 @@ int main(void){
     Net* net = new Net(layer_size, NUM_LAYER, MINI_BATCH_SIZE, EPOCH);
    
 
-    clock_t begin, end;
-    begin = clock();
-    
+	START_TIME
+
     // train
     train(net);
     
     // test
     test(net);
     
-    end = clock();
+	END_TIME
     
     std::cout << "==========error rate==========" << std::endl;
     std::cout << False/(True+False) * 100 << "% \n Total num error... : " << False << std::endl << " Total num correct... :" << True << std::endl;
-    std::cout << "    elapsed time : " << (double)(end-begin)/CLOCKS_PER_SEC << std::endl;
+    std::cout << "    elapsed time : ";
+	PRINT_TIME
     
-    //delete net;
+    delete net;
     return 0;
 }// main
 
@@ -78,17 +84,16 @@ void train(Net* net){
         fread(input, sizeof(byte), 16, inf);	// trash
         fread(output, sizeof(byte), 8, outf);	// trash
 
-
         for(int j=0; j<TRAIN_SIZE/MINI_BATCH_SIZE; j++){ 		// undiviable -> cutting...
             for(int k=0; k<MINI_BATCH_SIZE; k++){
                 fread(input, sizeof(byte), INPUT_SIZE, inf);
                 fread(output, sizeof(byte), 1, outf);
-
+#pragma omp parallel for
                 for(int l=0; l<INPUT_SIZE; l++)
                     input_double[k][l] = (double)input[l]!=0?1:0;
+#pragma omp parallel for
                 for(int l=0; l<OUTPUT_SIZE; l++)
                     output_double[k][l] = (double)((1 << output[0]) & (1 << l))!=0?1:0;
-                
             }
             net->train(input_double, output_double, MINI_BATCH_SIZE);
         }
@@ -105,8 +110,8 @@ void train(Net* net){
 
 // test
 void test(Net* net){
-    FILE *inf = fopen(TRAIN_PATH1, "r");
-    FILE *outf = fopen(TRAIN_PATH2, "r");
+    FILE *inf = fopen(TRAIN_PATH1, "rb");
+    FILE *outf = fopen(TRAIN_PATH2, "rb");
     
     byte input[INPUT_SIZE];
     byte output[OUTPUT_SIZE];
@@ -121,16 +126,17 @@ void test(Net* net){
     for(int i=0; i<TEST_SIZE; i++){
         fread(input, sizeof(byte), INPUT_SIZE, inf);
         fread(output, sizeof(byte), 1, outf);
-        
+#pragma omp parallel for
         for(int l=0; l<INPUT_SIZE; l++)
             input_double[l] = (double)input[l]!=0?1:0;
+#pragma omp parallel for
         for(int l=0; l<OUTPUT_SIZE; l++)
             output_double[l] = (double)((1 << output[0]) & (1 << l))!=0?1:0;
         
         result = net->test(input_double);
         
         
-        /********************************* print result *****************************/
+//        /********************************* print result *****************************/
 //        std::cout << "=====INPUT=====" << std::endl;
 //            for(int l=0; l<28; l++){
 //                for(int m=0; m<28; m++)
@@ -161,14 +167,16 @@ void error_rate(double result[], double desired[]){
             max = result[i];
             maxit = i;
         }
+
+#pragma omp parallel for
     for(int i=0; i<OUTPUT_SIZE; i++)
         if(i == maxit)
             result[i] = 1;
         else
             result[i] = 0;
     
-    bool checker;
-    checker = true;
+    bool checker = true;
+#pragma omp parallel for
     for(int j=0; j<OUTPUT_SIZE; j++)
         if(result[j] != desired[j])
             checker = false;
