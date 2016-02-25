@@ -221,10 +221,10 @@ void Net::backpropagation(double learning_rate, int num_data){
 #pragma omp parallel for
             for(j=0; j<layer_size[i]; j++)
                 for(k=0; k<layer_size[i+1]; k++)
-                    weight[i][j][k] -= error[0][i+1][k]				// delta
-                    * value[num_data-1][i+1][k]*(1-value[num_data-1][i+1][k])	// d{simoid(e)}/ d{e}
-                    * value[num_data-1][i][j]					// x1
-                    * learning_rate;						// learning rate
+                    weight[i][j][k] -= error[0][i+1][k]					// delta
+                    * value[num_data-1][i+1][k]*(1-value[num_data-1][i+1][k])		// d{simoid(e)}/ d{e}
+                    * value[num_data-1][i][j]						// x1
+                    * learning_rate;							// learning rate
         
 
         // update bias
@@ -232,10 +232,10 @@ void Net::backpropagation(double learning_rate, int num_data){
 #pragma omp parallel for
             for(j=0; j<layer_size[i]; j++)
                 for(k=0; k<layer_size[i+1]; k++)
-                    bias[i][j] += error[0][i+1][k]				// delta
-                    * value[num_data-1][i+1][k]*(1-value[num_data-1][i+1][k])	// d{simoid(e)}/ d{e}
-                    * value[num_data-1][i][j]					// x1
-                    * learning_rate;						// learning rate
+                    bias[i][j] += error[0][i+1][k]					// delta
+                    * value[num_data-1][i+1][k]*(1-value[num_data-1][i+1][k])		// d{simoid(e)}/ d{e}
+                    * value[num_data-1][i][j]						// x1
+                    * learning_rate;							// learning rate
 }// back propagation
 
 
