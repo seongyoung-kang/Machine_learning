@@ -1,0 +1,2 @@
+1. Using the Intel® MPI Library on Intel® Xeon Phi™ Coprocessor Systems
+	- https://software.intel.com/en-us/articles/using-the-intel-mpi-library-on-intel-xeon-phi-coprocessor-systems
