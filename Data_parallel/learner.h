@@ -117,7 +117,7 @@ Net::Net(int* layer_size, int num_layer, int mini_batch_size, int epoch){
     
     for(i=1; i<num_layer; i++)
         for(j=0; j<layer_size[i]; j++)
-            bias[i][j] = (double)rand()/(RAND_MAX/2)-1;
+            bias[i][j] = 0;
     
 }// constructor
 

@@ -3,15 +3,15 @@
 
 #include <omp.h>
 
-#define NUM_LAYER 4
+#define NUM_LAYER 7
 
 #define INPUT_SIZE 784
-#define HIDDEN_SIZE 184, 43
+#define HIDDEN_SIZE 800, 600, 400, 200, 100
 #define OUTPUT_SIZE 10
 
-#define LEARNING_RATE 26
+#define LEARNING_RATE 0.0005
 
-#define NUM_THREAD 228
+#define NUM_THREAD 8
 
 /******************************************************
  *
@@ -117,7 +117,7 @@ Net::Net(int* layer_size, int num_layer, int mini_batch_size, int epoch){
     
     for(i=1; i<num_layer; i++)
         for(j=0; j<layer_size[i]; j++)
-            bias[i][j] = (double)rand()/(RAND_MAX/2)-1;
+            bias[i][j] = 0;
     
 }// constructor
 
@@ -200,11 +200,6 @@ void Net::backpropagation(double learning_rate, int num_data){
 		for(i=0; i<num_layer-1; i++)
 			for(j=0; j<layer_size[i]; j++)
 				error[0][i+1][j] = (error[0][i+1][j] + error[cycle][i+1][j])/num_data;
-/*
-		for(i=0; i<num_layer-1; i++)
-			for(j=0; j<layer_size[i]; j++)
-				error[0][i+1][j] /= num_data;
-				*/
 
 
         // update weight
