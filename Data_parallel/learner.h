@@ -10,7 +10,7 @@
 #define HIDDEN_SIZE 800, 600, 400, 200, 100
 #define OUTPUT_SIZE 10
 
-#define LEARNING_RATE 0.1
+#define LEARNING_RATE ?	// need to set
 
 #define NUM_THREAD 200
 

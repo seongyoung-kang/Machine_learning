@@ -4,14 +4,13 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <sys/time.h>
 #include <math.h>
 #include "learner.h"
 
 #define TRAIN_SIZE 60000
 #define TEST_SIZE 10000
 
-#define MINI_BATCH_SIZE 8
+#define MINI_BATCH_SIZE 200
 #define EPOCH 1
 
 /* 		Time checker		*/
@@ -50,15 +49,14 @@ int main(int ac, char* av[]){
     // train
     train(net);
     
+	report(av[1]);
     
     // test
     test(net);
     
-    
     // report
-    report(av[1]);
-    
-    
+    report(av[2]);
+
     return 0;
 }// main
 
@@ -82,7 +80,6 @@ void train(Net* net){
     
     for(int i=0; i<EPOCH; i++){
         printf("epoch %d is running...\n", i+1);
-        
         fread(input, sizeof(byte), 16, inf);	// trash
         fread(output, sizeof(byte), 8, outf);	// trash
         
@@ -97,7 +94,7 @@ void train(Net* net){
             }
             START_TIME
             net->train(input_double, output_double, MINI_BATCH_SIZE);
-            END_TIME
+			END_TIME
             timersub(&end_time, &start_time, &elapsed_time);
             timeradd(&elapsed_time, &exec_time, &exec_time);
         }
@@ -173,6 +170,8 @@ void report(char* file){
     printf("# of False : %d\n", (int)False);
     printf("execution time : ");
     PRINT_TIME
+    for(int i=0; i<=5; i++)
+        printf("section [%d] : %ld.%d\n", i, sum_t[i].tv_sec, sum_t[i].tv_usec);
     
     FILE* outf = fopen(file, "w+");
     char str[256];
@@ -181,6 +180,8 @@ void report(char* file){
     sprintf(str, "%s epoch : %d\n", str, EPOCH);
     sprintf(str, "%s learning rate : %lf\n", str, LEARNING_RATE);
     sprintf(str, "%s recognition rate : %lf %\n", str, True/(True+False)*100);
-    sprintf(str, "%s execution time : %ld.%ld \n", str, exec_time.tv_sec, exec_time.tv_usec);
+    sprintf(str, "%s execution time : %ld.%ld\n", str, exec_time.tv_sec, exec_time.tv_usec);
+    for(int i=0; i<=5; i++)
+        sprintf(str, "%s section [%d] : %ld.%d\n", str, i, sum_t[i].tv_sec, sum_t[i].tv_usec);
     fprintf(outf, "%s", str);
 }// report
