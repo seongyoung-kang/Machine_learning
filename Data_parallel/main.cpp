@@ -12,7 +12,7 @@
 #define TEST_SIZE 10000
 
 #define MINI_BATCH_SIZE 8
-#define EPOCH 10
+#define EPOCH 1
 
 /* 		Time checker		*/
 struct timeval start_time, end_time, elapsed_time, exec_time;
