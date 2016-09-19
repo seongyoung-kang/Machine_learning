@@ -4,7 +4,7 @@
 #include <omp.h>
 #include <sys/time.h>
 
-#define NUM_LAYER 7
+#define NUM_LAYER 4
 
 #define INPUT_SIZE 784
 #define HIDDEN_SIZE 800, 400
