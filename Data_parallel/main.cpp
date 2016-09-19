@@ -49,13 +49,11 @@ int main(int ac, char* av[]){
     // train
     train(net);
     
-	report(av[1]);
-    
     // test
     test(net);
     
     // report
-    report(av[2]);
+    report(av[1]);
 
     return 0;
 }// main
