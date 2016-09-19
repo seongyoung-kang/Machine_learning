@@ -7,12 +7,13 @@
 #define NUM_LAYER 7
 
 #define INPUT_SIZE 784
-#define HIDDEN_SIZE 800, 600, 400, 200, 100
+#define HIDDEN_SIZE 800, 400
 #define OUTPUT_SIZE 10
 
-#define LEARNING_RATE ?	// need to set
+#define LEARNING_RATE 0.01	// need to set
 
-#define NUM_THREAD 200
+#define NUM_THREAD 200		// # of thread
+
 
 /******************************************************
  *
@@ -23,13 +24,6 @@
  * value : each node's output
  *
  ******************************************************/
-
-int sec;
-struct timeval start_t, end_t, sum_t[10], exec_t;
-#define START_T gettimeofday(&start_t, NULL);
-#define END_T gettimeofday(&end_t, NULL);
-#define SAVE_T timersub(&end_t, &start_t, &exec_t);\
-timeradd(&exec_t, &sum_t[sec], &sum_t[sec]);
 
 class Net{
 private:
@@ -133,21 +127,13 @@ Net::Net(int* layer_size, int num_layer, int mini_batch_size, int epoch){
 
 void Net::train(double input[][INPUT_SIZE], double desired[][OUTPUT_SIZE], int num_data){
     int i;
-    START_T
     initializer();
-    END_T
-    sec=0;
-    SAVE_T
     
-    START_T
 #pragma omp parallel for num_threads(num_data)
     for(i=0; i<num_data; i++){
         feedforward(input[i], i);
         back_pass(desired[i], error[i], i);
     }
-    END_T
-    sec=1;
-    SAVE_T
     
     backpropagation(LEARNING_RATE, num_data);
 }// train
@@ -211,7 +197,6 @@ void Net::back_pass(double* desired, double** error, int data_num){
 void Net::backpropagation(double learning_rate, int num_data){
     int i, j, k, no_loop=0;
     
-    START_T
 #pragma omp parallel for num_threads(nCPU)
     for(i=1; i<num_layer-1; i++)
         no_loop += layer_size[i];
@@ -235,11 +220,7 @@ void Net::backpropagation(double learning_rate, int num_data){
             
             error[0][no_layer][i-sum_nu] /= num_data;
         }
-    END_T
-    sec=2;
-    SAVE_T
     
-    START_T
     // update weight
     no_loop = 0;
 #pragma omp parallel for num_threads(nCPU)
@@ -261,12 +242,7 @@ void Net::backpropagation(double learning_rate, int num_data){
         * value[num_data-1][no_layer][no_no]
         * learning_rate;
     }
-    END_T
-    sec=3;
-    SAVE_T
     
-    
-    START_T
     // update bias
     no_loop = 0;
 #pragma omp parallel for num_threads(nCPU)
@@ -284,10 +260,6 @@ void Net::backpropagation(double learning_rate, int num_data){
         * value[num_data-1][no_layer][i-sum_nu]
         * learning_rate;
     }
-    
-    END_T
-    sec=4;
-    SAVE_T
 }// back propagation
 
 
