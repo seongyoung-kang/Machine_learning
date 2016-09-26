@@ -4,15 +4,13 @@
 #include <omp.h>
 #include <sys/time.h>
 
-#define NUM_LAYER 4
+#define NUM_LAYER 7
 
 #define INPUT_SIZE 784
-#define HIDDEN_SIZE 800, 400
+#define HIDDEN_SIZE 800, 600, 400, 200, 100
 #define OUTPUT_SIZE 10
 
 #define LEARNING_RATE 0.01	// need to set
-
-#define NUM_THREAD 200		// # of thread
 
 
 /******************************************************
@@ -25,9 +23,22 @@
  *
  ******************************************************/
 
+
+
+/*				To Timer			*/
+struct timeval start_t, end_t, sum_t[10], exec_t;
+#define START_T gettimeofday(&start_t, NULL);
+#define END_T(x) gettimeofday(&end_t, NULL);\
+timersub(&end_t, &start_t, &exec_t);\
+timeradd(&exec_t, &sum_t[x], &sum_t[x]);
+
+
+
+
+
 class Net{
 private:
-    int nCPU;
+    int nThread;
     int num_layer;
     int mini_batch_size;
     int* layer_size;
@@ -37,7 +48,7 @@ private:
     double*** error;
     
 public:
-    Net(int* layer_size, int num_layer, int mini_batch_size, int epoch);
+    Net(int* layer_size, int num_layer, int mini_batch_size, int epoch, int num_thread);
     ~Net();
     
     void train(double input[][INPUT_SIZE], double desired[][OUTPUT_SIZE], int num_data);
@@ -63,8 +74,8 @@ private:
 //		implementations
 
 // constructor
-Net::Net(int* layer_size, int num_layer, int mini_batch_size, int epoch){
-    nCPU = NUM_THREAD;
+Net::Net(int* layer_size, int num_layer, int mini_batch_size, int epoch, int num_thread){
+    nThread = num_thread;
     
     int i, j, k;
     //
@@ -120,22 +131,27 @@ Net::Net(int* layer_size, int num_layer, int mini_batch_size, int epoch){
     for(i=1; i<num_layer; i++)
         for(j=0; j<layer_size[i]; j++)
             bias[i][j] = 0;
-    
 }// constructor
 
 
 
 void Net::train(double input[][INPUT_SIZE], double desired[][OUTPUT_SIZE], int num_data){
     int i;
+    START_T
     initializer();
+    END_T(0)
     
+    START_T
 #pragma omp parallel for num_threads(num_data)
     for(i=0; i<num_data; i++){
         feedforward(input[i], i);
         back_pass(desired[i], error[i], i);
     }
+    END_T(1)
     
+    START_T
     backpropagation(LEARNING_RATE, num_data);
+    END_T(2)
 }// train
 
 
@@ -150,7 +166,7 @@ double* Net::test(double* input){
 
 void Net::initializer(){
     int i, j, k;
-#pragma omp parallel for num_threads(nCPU)
+#pragma omp parallel for num_threads(nThread)
     for(k=0; k<mini_batch_size; k++)
         for(i=1; i<num_layer; i++)
             for(j=0; j<layer_size[i]; j++)
@@ -197,11 +213,11 @@ void Net::back_pass(double* desired, double** error, int data_num){
 void Net::backpropagation(double learning_rate, int num_data){
     int i, j, k, no_loop=0;
     
-#pragma omp parallel for num_threads(nCPU)
+#pragma omp parallel for num_threads(nThread)
     for(i=1; i<num_layer-1; i++)
         no_loop += layer_size[i];
     
-#pragma omp parallel for num_threads(nCPU)
+#pragma omp parallel for num_threads(nThread)
     for(i=0; i<no_loop; i++)
         for(j=1; j<num_data; j++){
             int sum_nu = 0, no_layer = 1;
@@ -211,7 +227,7 @@ void Net::backpropagation(double learning_rate, int num_data){
             error[0][no_layer][i-sum_nu] += error[j][no_layer][i-sum_nu];
         }
     
-#pragma omp parallel for num_threads(nCPU)
+#pragma omp parallel for num_threads(nThread)
     for(i=0; i<no_loop; i++)
         for(j=1; j<num_data; j++){
             int sum_nu = 0, no_layer = 1;
@@ -223,11 +239,11 @@ void Net::backpropagation(double learning_rate, int num_data){
     
     // update weight
     no_loop = 0;
-#pragma omp parallel for num_threads(nCPU)
+#pragma omp parallel for num_threads(nThread)
     for(i=0; i<num_layer-1; i++)
         no_loop += layer_size[i]*layer_size[i+1];
     
-#pragma omp parallel for num_threads(nCPU)
+#pragma omp parallel for num_threads(nThread)
     for(i=0; i<no_loop; i++){
         int sum_nu = 0, no_layer = 0;
         while(i >= sum_nu + layer_size[no_layer]*layer_size[no_layer+1])
@@ -245,11 +261,11 @@ void Net::backpropagation(double learning_rate, int num_data){
     
     // update bias
     no_loop = 0;
-#pragma omp parallel for num_threads(nCPU)
+#pragma omp parallel for num_threads(nThread)
     for(i=1; i<num_layer-1; i++)
         no_loop += layer_size[i];
     
-#pragma omp parallel for num_threads(nCPU)
+#pragma omp parallel for num_threads(nThread)
     for(i=0; i<no_loop; i++){
         int sum_nu = 0, no_layer = 1;
         while(i >= sum_nu + layer_size[no_layer])

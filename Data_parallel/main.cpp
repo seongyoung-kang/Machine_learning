@@ -35,7 +35,7 @@ static double False = 0;
 static void train(Net* net);
 static void test(Net* net);
 static void error_rate(double* result, double* desired);
-static void report(char* file);
+static void report(char* num_thread, char* file);
 
 
 
@@ -44,16 +44,16 @@ static void report(char* file);
 //  main
 int main(int ac, char* av[]){
     int layer_size[] = {INPUT_SIZE, HIDDEN_SIZE, OUTPUT_SIZE};
-    Net* net = new Net(layer_size, NUM_LAYER, MINI_BATCH_SIZE, EPOCH);
+    Net* net = new Net(layer_size, NUM_LAYER, MINI_BATCH_SIZE, EPOCH, atoi(av[1]));
     
     // train
     train(net);
     
-    // test
-    test(net);
-    
     // report
-    report(av[1]);
+    report(av[1], av[2]);
+    
+    // test
+    //test(net);
 
     return 0;
 }// main
@@ -139,47 +139,43 @@ void error_rate(double result[], double desired[]){
     double max = -1;
     int maxit = -1;
     
-    for(int i=0; i<OUTPUT_SIZE; i++)
-        if(result[i] > max){
-            max = result[i];
-            maxit = i;
-        }
+    for(int i=0; i<OUTPUT_SIZE; ++i)
+        if(result[i] > max)
+            max = result[i], maxit = i;
     
-    for(int i=0; i<OUTPUT_SIZE; i++)
-        if(i == maxit)
-            result[i] = 1;
-        else
-            result[i] = 0;
+    for(int i=0; i<OUTPUT_SIZE; ++i)
+        (i == maxit)? result[i] = 1: result[i] = 0;
     
     bool checker = true;
     for(int j=0; j<OUTPUT_SIZE; j++)
         if(result[j] != desired[j])
             checker = false;
-    if(checker) True++;
-    else False++;
+    (checker)? True++: False++;
 }// error_rate
 
 
 
-void report(char* file){
+void report(char* num_thread, char* file){
     puts("==========Result Report==========");
-    printf("recognition rate : %lf %\n", True/(True+False)*100);
+    printf("# of thread : %s\n", num_thread);
+    if(True+False)
+        printf("recognition rate : %lf %\n", True/(True+False)*100);
     printf("# of True : %d\n", (int)True);
     printf("# of False : %d\n", (int)False);
     printf("execution time : ");
     PRINT_TIME
-    for(int i=0; i<=5; i++)
+    for(int i=0; i<3; i++)
         printf("section [%d] : %ld.%d\n", i, sum_t[i].tv_sec, sum_t[i].tv_usec);
     
     FILE* outf = fopen(file, "w+");
     char str[256];
-    sprintf(str, "# of thread : %d\n", NUM_THREAD);
+    sprintf(str, "# of thread : %s\n", num_thread);
     sprintf(str, "%s mini batch size : %d\n", str, MINI_BATCH_SIZE);
     sprintf(str, "%s epoch : %d\n", str, EPOCH);
     sprintf(str, "%s learning rate : %lf\n", str, LEARNING_RATE);
     sprintf(str, "%s recognition rate : %lf %\n", str, True/(True+False)*100);
     sprintf(str, "%s execution time : %ld.%ld\n", str, exec_time.tv_sec, exec_time.tv_usec);
-    for(int i=0; i<=5; i++)
+    for(int i=0; i<3; i++)
         sprintf(str, "%s section [%d] : %ld.%d\n", str, i, sum_t[i].tv_sec, sum_t[i].tv_usec);
     fprintf(outf, "%s", str);
 }// report
