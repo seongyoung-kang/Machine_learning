@@ -10,9 +10,9 @@
 - 전송 : scp my_file mic0:/PHI_path
 
 	ICC with openmp…
-- c++ compile : icc -std=c++0x -fopenmp
-- c++ compile for PHI : icc -mmic -openmp -std=c++0x
-- vectorization & optimization report : icc -fopenmp -vec-report
+- c++ compile : icpc -std=c++11 -qopenmp
+- c++ compile for PHI : icpc -mmic -openmp -std=c++11
+- vectorization & optimization report : icpc -qopenmp -vec-report -std=c++11
 
 	openmp…
 - #pragma omp parallel : 기본 parallelization clause
