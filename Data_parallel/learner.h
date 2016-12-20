@@ -38,6 +38,7 @@ timeradd(&exec_t, &sum_t[x], &sum_t[x]);
 
 class Net{
 private:
+    int nCPU;
     int nThread;
     int num_layer;
     int mini_batch_size;
@@ -75,7 +76,7 @@ private:
 
 // constructor
 Net::Net(int* layer_size, int num_layer, int mini_batch_size, int epoch, int num_thread){
-    nThread = num_thread;
+    nCPU = nThread = num_thread;
     
     int i, j, k;
     //
@@ -211,71 +212,35 @@ void Net::back_pass(double* desired, double** error, int data_num){
 
 
 void Net::backpropagation(double learning_rate, int num_data){
-    int i, j, k, no_loop=0;
+    int i, j, k, cycle;
     
-#pragma omp parallel for num_threads(nThread)
-    for(i=1; i<num_layer-1; i++)
-        no_loop += layer_size[i];
+#pragma omp parallel num_threads(nCPU)
+    for(cycle=1; cycle<num_data; cycle++)
+        for(i=0; i<num_layer-1; i++)
+            for(j=0; j<layer_size[i]; j++)
+                error[0][i+1][j] = (error[0][i+1][j] + error[cycle][i+1][j])/num_data;
     
-#pragma omp parallel for num_threads(nThread)
-    for(i=0; i<no_loop; i++)
-        for(j=1; j<num_data; j++){
-            int sum_nu = 0, no_layer = 1;
-            while(i >= sum_nu + layer_size[no_layer])
-                sum_nu += layer_size[no_layer], no_layer++;
-            
-            error[0][no_layer][i-sum_nu] += error[j][no_layer][i-sum_nu];
-        }
-    
-#pragma omp parallel for num_threads(nThread)
-    for(i=0; i<no_loop; i++)
-        for(j=1; j<num_data; j++){
-            int sum_nu = 0, no_layer = 1;
-            while(i >= sum_nu + layer_size[no_layer])
-                sum_nu += layer_size[no_layer], no_layer++;
-            
-            error[0][no_layer][i-sum_nu] /= num_data;
-        }
     
     // update weight
-    no_loop = 0;
-#pragma omp parallel for num_threads(nThread)
+#pragma omp parallel for num_threads(nCPU)
     for(i=0; i<num_layer-1; i++)
-        no_loop += layer_size[i]*layer_size[i+1];
+        for(j=0; j<layer_size[i]; j++)
+            for(k=0; k<layer_size[i+1]; k++)
+                weight[i][j][k] -= error[0][i+1][k]                       // delta
+                * value[num_data-1][i+1][k]*(1-value[num_data-1][i+1][k]) // d{simoid(e)}/ d{e}
+                * value[num_data-1][i][j]                                 // x1
+                * learning_rate;                                          // learning rate
     
-#pragma omp parallel for num_threads(nThread)
-    for(i=0; i<no_loop; i++){
-        int sum_nu = 0, no_layer = 0;
-        while(i >= sum_nu + layer_size[no_layer]*layer_size[no_layer+1])
-            sum_nu += layer_size[no_layer]*layer_size[no_layer+1], no_layer++;
-        
-        int no_no = 0;
-        while(i >= sum_nu + layer_size[no_layer+1])
-            sum_nu += layer_size[no_layer+1], no_no++;
-        
-        weight[no_layer][no_no][i-sum_nu] -= error[0][no_layer+1][i-sum_nu]
-        * value[num_data-1][no_layer+1][i-sum_nu]*(1-value[num_data-1][no_layer+1][i-sum_nu])
-        * value[num_data-1][no_layer][no_no]
-        * learning_rate;
-    }
     
     // update bias
-    no_loop = 0;
-#pragma omp parallel for num_threads(nThread)
+#pragma omp parallel for num_threads(nCPU)
     for(i=1; i<num_layer-1; i++)
-        no_loop += layer_size[i];
-    
-#pragma omp parallel for num_threads(nThread)
-    for(i=0; i<no_loop; i++){
-        int sum_nu = 0, no_layer = 1;
-        while(i >= sum_nu + layer_size[no_layer])
-            sum_nu += layer_size[no_layer], no_layer++;
-        
-        bias[no_layer][i-sum_nu] -= error[0][no_layer+1][i-sum_nu]
-        * value[num_data-1][no_layer+1][i-sum_nu]*(1-value[num_data-1][no_layer+1][i-sum_nu])
-        * value[num_data-1][no_layer][i-sum_nu]
-        * learning_rate;
-    }
+        for(j=0; j<layer_size[i]; j++)
+            for(k=0; k<layer_size[i+1]; k++)
+                bias[i][j] += error[0][i+1][k]                            // delta
+                * value[num_data-1][i+1][k]*(1-value[num_data-1][i+1][k]) // d{simoid(e)}/ d{e}
+                * value[num_data-1][i][j]                                 // x1
+                * learning_rate;                                          // learning rate
 }// back propagation
 
 
