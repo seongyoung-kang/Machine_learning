@@ -4,13 +4,13 @@
 #include <omp.h>
 #include <sys/time.h>
 
-#define NUM_LAYER 7
+#define NUM_LAYER 3
 
 #define INPUT_SIZE 784
-#define HIDDEN_SIZE 800, 600, 400, 200, 100
+#define HIDDEN_SIZE 120
 #define OUTPUT_SIZE 10
 
-#define LEARNING_RATE 0.01	// need to set
+#define LEARNING_RATE 0.1	// need to set
 
 
 /******************************************************
@@ -38,7 +38,7 @@ timeradd(&exec_t, &sum_t[x], &sum_t[x]);
 
 class Net{
 private:
-    int nCPU;
+    int nMaxThread;
     int nThread;
     int num_layer;
     int mini_batch_size;
@@ -76,7 +76,8 @@ private:
 
 // constructor
 Net::Net(int* layer_size, int num_layer, int mini_batch_size, int epoch, int num_thread){
-    nCPU = nThread = num_thread;
+    nMaxThread = omp_get_max_threads();
+    nThread = num_thread;
     
     int i, j, k;
     //
@@ -214,7 +215,7 @@ void Net::back_pass(double* desired, double** error, int data_num){
 void Net::backpropagation(double learning_rate, int num_data){
     int i, j, k, cycle;
     
-#pragma omp parallel num_threads(nCPU)
+#pragma omp parallel num_threads(nMaxThread)
     for(cycle=1; cycle<num_data; cycle++)
         for(i=0; i<num_layer-1; i++)
             for(j=0; j<layer_size[i]; j++)
@@ -222,7 +223,7 @@ void Net::backpropagation(double learning_rate, int num_data){
     
     
     // update weight
-#pragma omp parallel for num_threads(nCPU)
+#pragma omp parallel for num_threads(nMaxThread)
     for(i=0; i<num_layer-1; i++)
         for(j=0; j<layer_size[i]; j++)
             for(k=0; k<layer_size[i+1]; k++)
@@ -233,7 +234,7 @@ void Net::backpropagation(double learning_rate, int num_data){
     
     
     // update bias
-#pragma omp parallel for num_threads(nCPU)
+#pragma omp parallel for num_threads(nMaxThread)
     for(i=1; i<num_layer-1; i++)
         for(j=0; j<layer_size[i]; j++)
             for(k=0; k<layer_size[i+1]; k++)
